@@ -1,4 +1,4 @@
-import numpy as np, torch, random, math, sys, itertools
+import numpy as np, random, sys
 sys.path.append('../')
 from lardon import batch
 
