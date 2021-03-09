@@ -21,22 +21,22 @@ def compile(root_directory, target_directory, callback=dumb_callback, valid_exts
     for root, directory, files in os.walk(root_directory):
         valid_files = list(filter(lambda f: True in [re.match(v, os.path.splitext(f)[1]) is not None for v in valid_exts], files))
         file_list.extend([f"{root}/{f}" for f in valid_files])
-        file_prefix = re.sub(root_directory + '/', '', root)
+        file_prefix = re.sub(root_directory + '(/)?', '', root)
         if len(valid_files) != 0:
             checkdir(f"{tmp_dir}/{file_prefix}")
 
     for f in tqdm(file_list, desc="exporting files...", total=len(file_list)):
-        file_prefix = re.sub(root_directory + '/', '', f)
-        current_filename = f"{tmp_dir}/{os.path.splitext(file_prefix)[0]}{extension}"
+        file_name = re.sub(root_directory + '/', '', f)
+        current_filename = f"{tmp_dir}/{os.path.splitext(file_name)[0]}{extension}"
         data, metadata = callback(f)
         save_as_memmap(f"{current_filename}", data)
-        hash_key = f"{os.path.splitext(file_prefix)[0]}{extension}"
+        hash_key = f"{os.path.splitext(file_name)[0]}{extension}"
         parsing_hash[f"{hash_key}"] = {'shape':data.shape, 'strides':data.strides, 'dtype':data.dtype, **metadata}
         # entries.append(OfflineEntry(f"{current_filename}", dtype=data.dtype, shape=data.shape, strides=data.strides, **metadata))
 
     with open(f"{tmp_dir}/parsing.ldn", 'wb+') as f:
         dill.dump(parsing_hash, f)
-    os.system(f'mv -f {tmp_dir} {target_directory}')
+    os.system(f'mv -f {tmp_dir}/* {target_directory}')
 
     entries = []
     for k, v in parsing_hash.items():

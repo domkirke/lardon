@@ -16,6 +16,11 @@ version of the dataset, referring to data elements using aysnchonous callback un
 whose corresponding data is pointed using a `Selector`. Entries are compiled in an `OfflineDataList` object,
 that can be indexed as an usual list. 
 
+###### Warning
+Please consider that, due to the `numpy.memmap` back-end, import time goes exponentially with the depth of the
+sliced dimension. Hence, dynamic import of deep dimensions of an array. For exemple, if the array is 10x10x10x10 `x[:, :, :, 0]`
+will result to 1000 `memmap` calls, while `x[:, 0:20]` will result to only 10 calls.
+
 ### Data parsing
 Data parsing can be easily done using the ``compile`` function :
 ```python
@@ -94,3 +99,21 @@ print(batched_import.shape)
 Basic reshaping of incoming data can also be performed using the `expand_dims` or `squeeze` methods.
 Please note that numpy callbacks are called before data batching, such that the axis keyword refer to 
 the axis of individual batches. 
+
+```python
+from lardon import parse_folder
+
+path = "/Users/domkirke/Datasets/lardon_dataset"
+# the pad mode allows additional arguments for the np.pad function
+offline_list = parse_folder(path+'/parsed', batch_mode="pad",
+                            batch_args={'mode':'constant', 'constant_values':2})
+offline_list.expand_dims(2)
+batched_import = offline_list[0]
+print(batched_import.shape)
+```
+
+
+
+
+
+

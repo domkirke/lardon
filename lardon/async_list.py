@@ -1,4 +1,4 @@
-import numpy as np, torch, random, math, sys
+import numpy as np, torch, random, math, sys, itertools
 sys.path.append('../')
 from lardon import batch
 
@@ -17,12 +17,16 @@ class ShapeError(Exception):
 def is_same(x):
     return x.count(x[0]) == len(x)
 
-def get_full_idx(idx, dim):
+def get_full_idx(idx, shape):
     n_idx = len(idx)
+    dim = len(shape)
     full_idx = [None]*dim
     for d in range(dim):
         if d < n_idx:
-            full_idx[d] = idx[d]
+            if isinstance(idx[d], int):
+                full_idx[d] = (idx[d])
+            else:
+                full_idx[d] = idx[d]
         else:
             full_idx[d] = slice(None, None, None)
     return full_idx
@@ -45,37 +49,59 @@ def get_final_dim(sl, shape, squeeze=True):
     return final_dim
 
 def load_memmap(fp, idx, shape, strides, dtype, squeeze=True):
+    # check if strides are sorted (mandatory)
     sort = np.argsort(strides)
-    if not np.unique(np.diff(sort)).all(-1):
-        raise NotImplementedError
+    assert np.unique(np.diff(sort)).all(-1), "array is not contiguous"
+
+    # init iteration
     offsets = np.array([0])
     shapes = np.array([shape])
+    # detect last slicing index
     end_idx = len(idx)
     for i in reversed(idx):
         if i == slice(None):
             end_idx -= 1
         else:
             break
-    idx = get_full_idx(idx, len(shape))
+    # get complete index (why?)
+    idx = get_full_idx(idx, shape)
+    # get final array shape
     final_shape = get_final_dim(idx, shape)
     final_shape_idx = 0
+    offsets = np.array([0])
+    # for dim in range(end_idx):
+    #     if isinstance(idx[dim], int):
+    #         offsets = offsets + strides[dim] * idx[dim]
+    #         shapes[dim] = 1
+    #     elif isinstance(idx[dim], slice):
+
+
     for dim in range(end_idx):
         if isinstance(idx[dim], int):
-            offsets = offsets + strides[dim] * idx[dim]
-            shapes[:, dim] = 1
-        elif isinstance(idx[dim], slice):
-            if idx[dim].step is None:
-                start = idx[dim].start if idx[dim].start is not None else 0
-                offsets = offsets + strides[dim] * start
-                shapes[:, dim] = final_shape[final_shape_idx]
-            else:
-                assert idx[dim].step > 0, "zero or negative step is not allowed (found at dim %d)"%dim
-                dim_idx = list(range(shape[dim]))[idx[dim]]
-                offsets = (offsets[np.newaxis] + (np.array(dim_idx) * strides[dim])[:, np.newaxis]).flatten()
-                offsets.sort()
-                shapes = shapes.repeat(len(dim_idx), 0)
+            # offsets = offsets + strides[dim] * idx[dim]
+            # shapes[:, dim] = 1
+            if dim == 0:
+                offsets = (offsets[np.newaxis] + (idx[dim] * strides[dim])).flatten()
                 shapes[:, dim] = 1
-            final_shape_idx += 1
+            else:
+                offsets = offsets[np.newaxis].repeat(shapes[0][dim - 1], 0) + (np.arange(shapes[0][dim - 1])[np.newaxis].T*strides[dim-1])
+                offsets = (offsets + (idx[dim] * strides[dim])).flatten()
+                shapes = shapes.repeat(shapes[0][dim - 1], 0)
+                shapes[:, dim] = 1
+                shapes[:, dim-1] = 1
+        elif isinstance(idx[dim], slice):
+            # if idx[dim].step is None:
+            #     start = idx[dim].start if idx[dim].start is not None else 0
+            #     offsets = offsets + strides[dim] * start
+            #     shapes[:, dim] = final_shape[final_shape_idx]
+            # else:
+            #     assert idx[dim].step > 0, "zero or negative step is not allowed (found at dim %d)"%dim
+            dim_idx = list(range(shape[dim]))[idx[dim]]
+            offsets = (offsets[np.newaxis] + (np.array(dim_idx) * strides[dim])[:, np.newaxis]).flatten()
+            offsets.sort()
+            shapes = shapes.repeat(len(dim_idx), 0)
+            shapes[:, dim] = 1
+        final_shape_idx += 1
     if len(final_shape) == 0:
         arr = np.array([0], dtype=dtype)
     else:
@@ -96,6 +122,12 @@ class randslice(object):
         self.start = start
         self.stop = stop
         self.step = None
+
+    def __repr__(self):
+        return ("randslice(length=%s"%self.length) + \
+               (", start=%s"%self.start if self.start is not None else "") + \
+               (", stop=%s"%self.stop if self.stop is not None else "") +\
+               (")")
 
     def sample(self, shape=None):
         if self.start is None or self.stop is None:
@@ -183,7 +215,7 @@ class IndexPick(Selector):
             elif isinstance(c_i, int):
                 assert c_i < shape[i], "index %d incompatible with shape %s at dim %d"%(c_i, shape, i)
             elif hasattr(c_i, "__iter__"):
-                max_idx = math.max(c_i)
+                max_idx = max(c_i)
                 assert max_idx < shape[i], "tried to retrieve idx %s, but shape at dim %d is %s"%(max_idx, i, c_i)
 
     def __call__(self, file, shape, strides, dtype=np.float, return_indices=False, **kwargs):
@@ -326,7 +358,13 @@ class OfflineDataList(object):
 
     @property
     def ndim(self):
-        return len(self.shape)
+        if self.shape is not None:
+            return len(self.shape)
+        else:
+            dims = set([e.shape for e in self.entries])
+            if len(dims) > 1:
+                raise Exception('cannot return ndim of OfflineDataList, found dimensions : %s'%dims)
+
 
     @property
     def dtype(self):
@@ -366,8 +404,11 @@ class OfflineDataList(object):
             data = [entry(return_metadata=self.return_metadata, return_indices=self.return_indices) for entry in self.entries[args]]
 
         if self.return_metadata:
-            metadata = [d[1] for d in data]
-            data = [d[0] for d in data]
+            if isinstance(data, list):
+                metadata = [d[1] for d in data]
+                data = [d[0] for d in data]
+            else:
+                data, metadata = data
 
         # apply transforms
         if isinstance(data, list):
