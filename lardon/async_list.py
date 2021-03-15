@@ -1,4 +1,4 @@
-import numpy as np, random, sys
+import numpy as np, random, sys, numbers
 sys.path.append('../')
 from lardon import batch
 
@@ -185,7 +185,10 @@ class IndexPick(Selector):
         self.idx =  idx
 
     def  __repr__(self):
-        return "IndexPick(%d)"%self.idx
+        if isinstance(self.idx, tuple):
+            return "IndexPick(%s)"%(self.idx)
+        else:
+            return "IndexPick(%s)" % self.idx
 
     def __getitem__(self):
         raise NotImplementedError
@@ -325,6 +328,15 @@ class OfflineEntry(object):
             raise TypeError('type of entry %s is not known yet' % self)
         return self._dtype
 
+    def scatter(self, axis=0):
+        if axis < 0:
+            axis = len(self._pre_shape) + axis
+        scatter_shape = self._pre_shape[axis]
+        entries = [type(self)(self.file, self.selector[(slice(None, None, None),)*axis + (i, )], dtype=self._dtype,
+                              shape=self._pre_shape, strides=self.strides) for i in range(scatter_shape)]
+        return entries
+
+
 
 class OfflineDataList(object):
     EntryClass = OfflineEntry
@@ -389,21 +401,23 @@ class OfflineDataList(object):
         else:
             raise IndexError('class of OfflineDataList elements must be OfflineEntry')
 
-    def __getitem__(self, args):
-        if isinstance(args, int):
+    def __getitem__(self, args, return_metadata=None, return_indices=None):
+        return_metadata = self.return_metadata if return_metadata is None else return_metadata
+        return_indices = self.return_indices if return_indices is None else return_indices
+        if isinstance(args, numbers.Integral):
             data = self.entries[args](return_metadata=self.return_metadata)
         elif isinstance(args, tuple):
             idx = args[0]
-            if isinstance(args[0], int):
-                data = self.entries[idx][args[1:]](return_metadata=self.return_metadata, return_indices=self.return_indices)
+            if isinstance(args[0], numbers.Integral):
+                data = self.entries[idx][args[1:]](return_metadata=return_metadata, return_indices=return_indices)
             if hasattr(args[0], "__iter__"):
-                data = [self.entries[i][args[1:]](return_metadata=self.return_metadata, return_indices=self.return_indices) for i in idx]
+                data = [self.entries[i][args[1:]](return_metadata=return_metadata, return_indices=return_indices) for i in idx]
             elif isinstance(args[0], slice):
-                data = [self.entries[i][args[1:]](return_metadata=self.return_metadata, return_indices=self.return_indices) for i in range(len(self.entries))[idx]]
+                data = [self.entries[i][args[1:]](return_metadata=return_metadata, return_indices=return_indices) for i in range(len(self.entries))[idx]]
         elif isinstance(args, slice):
-            data = [entry(return_metadata=self.return_metadata, return_indices=self.return_indices) for entry in self.entries[args]]
+            data = [entry(return_metadata=return_metadata, return_indices=return_indices) for entry in self.entries[args]]
 
-        if self.return_metadata:
+        if return_metadata:
             if isinstance(data, list):
                 metadata = [d[1] for d in data]
                 data = [d[0] for d in data]
@@ -417,7 +431,7 @@ class OfflineDataList(object):
             data = self.apply_transforms(data)
 
         data = batch_hash[self._batch_mode](data, **self.batch_args)
-        if self.return_metadata:
+        if return_metadata:
             return data, metadata
         else:
             return data
@@ -490,7 +504,7 @@ class OfflineDataList(object):
         assert mode in ['list', 'pad', 'crop']
         self._batch_mode = mode
 
-    def __init__(self, *args, check=True, dtype=None, transforms=None, selector=Selector(),
+    def __init__(self, *args, check=False, dtype=None, transforms=None, selector=Selector(),
                  batch_mode="list", batch_args = {}, return_metadata=False, return_indices=False):
         """
         OfflineDataList is suupposed to be a ordered list of :class:`OfflineEntry`, that are callback objects reading files
