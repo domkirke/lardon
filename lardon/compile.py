@@ -34,6 +34,7 @@ def compile(root_directory, target_directory, callback=dumb_callback, valid_exts
         file_name = re.sub(root_directory + '/', '', f)
         current_filename = f"{tmp_dir}/{os.path.splitext(file_name)[0]}{extension}"
         data, metadata = callback(f)
+        data = np.ascontiguousarray(data)
         save_as_memmap(f"{current_filename}", data)
         hash_key = f"{os.path.splitext(file_name)[0]}{extension}"
         parsing_hash[f"{hash_key}"] = {'shape':data.shape, 'strides':data.strides, 'dtype':data.dtype, **metadata}
@@ -105,6 +106,7 @@ class LardonParser(object):
             target_filename = os.path.splitext(re.sub(self.root_directory, self.target_directory, filename))[0]+self.extension
         else:
             target_filename = f"{self.target_directory}/data_{self._intern_count}.npy"
+        data = np.ascontiguousarray(data)
         save_as_memmap(target_filename, data)
         current_hash = re.sub(self.target_directory+'/?', '', target_filename)
         self.parsing_hash[current_hash] ={'shape':data.shape, 'strides':data.strides, 'dtype':data.dtype, **metadata}

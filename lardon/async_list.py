@@ -51,7 +51,7 @@ def get_final_dim(sl, shape, squeeze=True):
 def load_memmap(fp, idx, shape, strides, dtype, squeeze=True):
     # check if strides are sorted (mandatory)
     sort = np.argsort(strides)
-    assert np.unique(np.diff(sort)).all(-1), "array is not contiguous"
+    assert (np.unique(np.diff(sort)) == -1).all(), 'array is not contiguous'
 
     # init iteration
     offsets = np.array([0])
