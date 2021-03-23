@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: lardon
-Version: 0.1.0
+Version: 0.1.1
 Summary: numpy memmap front-end for large data indexing
 Home-page: http://github.com/domkkirke/lardon
 Author: domkirke
