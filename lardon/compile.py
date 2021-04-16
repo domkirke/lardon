@@ -107,6 +107,7 @@ class LardonParser(object):
         else:
             target_filename = f"{self.target_directory}/data_{self._intern_count}.npy"
         data = np.ascontiguousarray(data)
+        checkdir(os.path.dirname(target_filename))
         save_as_memmap(target_filename, data)
         current_hash = re.sub(self.target_directory+'/?', '', target_filename)
         self.parsing_hash[current_hash] ={'shape':data.shape, 'strides':data.strides, 'dtype':data.dtype, **metadata}
