@@ -165,8 +165,8 @@ class Selector(object):
     def __repr__(self):
         return "Selector()"
 
-    def __getitem__(self, idx):
-        return IndexPick(idx)
+    def __getitem__(self, *args):
+        return IndexPick(args)
 
     def get_shape(self, shape):
         return shape
@@ -177,6 +177,11 @@ class Selector(object):
             return data, np.array([0])
         else:
             return data
+
+def is_empty_slice(sl):
+    if not isinstance(sl, slice):
+        return False
+    return (sl.start is None or sl.start is 0) and (sl.stop is None or sl.stop == -1) and (sl.step is None or sl.step == 1)
 
 
 class IndexPick(Selector):
@@ -190,8 +195,11 @@ class IndexPick(Selector):
         else:
             return "IndexPick(%s)" % self.idx
 
-    def __getitem__(self):
-        raise NotImplementedError
+    def __getitem__(self, *args):
+        if set(map(lambda x: is_empty_slice(x), args)) != {True}:
+            raise NotImplementedError
+        else:
+            return Selector()
 
     def get_shape(self, shape):
         new_shape = list(shape)
@@ -244,7 +252,7 @@ class OfflineEntry(object):
         if len(item) == 0:
             return self
         else:
-            return type(self)(self.file, selector=self.selector[item], dtype=self._dtype, shape=self._post_shape,
+            return type(self)(self.file, selector=self.selector.__getitem__(*item), dtype=self._dtype, shape=self._post_shape,
                         strides=self.strides)
 
     def __init__(self, file, selector=Selector(), dtype=None, shape=None, strides=None, **kwargs):
@@ -333,7 +341,7 @@ class OfflineEntry(object):
             axis = len(self._pre_shape) + axis
         scatter_shape = self._pre_shape[axis]
         entries = [type(self)(self.file, self.selector[(slice(None, None, None),)*axis + (i, )], dtype=self._dtype,
-                              shape=self._pre_shape, strides=self.strides) for i in range(scatter_shape)]
+                              shape=self._pre_shape, strides=self.strides[axis:]) for i in range(scatter_shape)]
         return entries
 
 

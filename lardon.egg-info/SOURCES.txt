@@ -5,6 +5,7 @@ lardon/async_list.py
 lardon/batch.py
 lardon/compile.py
 lardon/utils.py
+lardon.egg-info/.DS_Store
 lardon.egg-info/PKG-INFO
 lardon.egg-info/SOURCES.txt
 lardon.egg-info/dependency_links.txt
