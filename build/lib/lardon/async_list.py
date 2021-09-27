@@ -246,7 +246,7 @@ class OfflineEntry(object):
     """
 
     def __repr__(self):
-        return "OfflineEntry(lambda %s of file %s)" % (self.selector, self.file)
+        return "OfflineEntry(selector: %s, file: %s)" % (self.selector, self.file)
 
     def __getitem__(self, item):
         if len(item) == 0:
@@ -340,7 +340,7 @@ class OfflineEntry(object):
         if axis < 0:
             axis = len(self._pre_shape) + axis
         scatter_shape = self._pre_shape[axis]
-        entries = [type(self)(self.file, self.selector[(slice(None, None, None),)*axis + (i, )], dtype=self._dtype,
+        entries = [type(self)(self.file, self.selector.__getitem__(*((slice(None, None, None),)*axis + (i, ))), dtype=self._dtype,
                               shape=self._pre_shape, strides=self.strides[axis:]) for i in range(scatter_shape)]
         return entries
 
