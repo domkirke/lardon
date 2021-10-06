@@ -144,7 +144,7 @@ class randslice(object):
 def sample_idx(idx, shape):
     if isinstance(idx, int):
         return idx
-    elif isinstance(idx, tuple):
+    elif isinstance(idx, (tuple, list)):
         idx = list(idx)
         for i, ix in enumerate(idx):
             if isinstance(ix, randslice):
@@ -191,19 +191,57 @@ class IndexPick(Selector):
 
     def  __repr__(self):
         if isinstance(self.idx, tuple):
-            return "IndexPick(%s)"%(self.idx)
+            return "IndexPick%s" % (str(self.idx))
         else:
-            return "IndexPick(%s)" % self.idx
+            return "IndexPick(%s)" % (self.idx)
 
     def __getitem__(self, *args):
         if set(map(lambda x: is_empty_slice(x), args)) != {True}:
-            raise NotImplementedError
+            idx = []
+            current_pos = 0
+            for i in range(len(self.idx)):
+                if isinstance(self.idx[i], int):
+                    idx.append(self.idx[i])
+                if isinstance(self.idx[i], slice):
+                    if current_pos >= len(args):
+                        idx.append(self.idx[i])
+                    if isinstance(args[current_pos], int):
+                        idx.append((self.idx[i].start or 0) + args[current_pos])
+                        current_pos += 1
+                    elif isinstance(args, slice):
+                        sl1 = self.idx[i]; sl2 = args[current_pos]
+                        if is_empty_slice(sl1) and is_empty_slice(sl2):
+                            idx.append(slice(None))
+                        elif is_empty_slice(sl1):
+                            idx.append(sl2)
+                        elif is_empty_slice(sl2):
+                            idx.append(sl1)
+                        start = sl1.start + sl2.start
+                        if (sl1.stop is None) and (sl2 is None):
+                            stop = None
+                        elif sl1.stop is None:
+                            stop = sl2.stop
+                        elif sl2.stop is None:
+                            stop = sl1.stop
+                        else:
+                            stop = start + sl2.stop
+                        step = sl1.step * sl2.step
+                        idx.append(slice(start, stop, step))
+                        current_pos += 1
+                    else:
+                        raise NotImplementedError
+            if current_pos < len(args):
+                for i in range(current_pos, len(args)):
+                    idx.append(args[i])
+            return IndexPick(idx=tuple(idx))
         else:
-            return Selector()
+            return self
 
     def get_shape(self, shape):
         new_shape = list(shape)
         for i, idx in enumerate(self.idx):
+            if i >= len(shape):
+                break
             if isinstance(idx, slice):
                 new_shape[i] = len(range(shape[i])[idx])
             elif hasattr(idx, "__iter__"):
@@ -219,7 +257,10 @@ class IndexPick(Selector):
         return tuple(new_shape)
 
     def check_idx(self, idx, shape):
+        new_idx = []
         for i, c_i in enumerate(idx):
+            if i > len(shape):
+                break
             if isinstance(c_i, slice):
                 if c_i.stop is not None:
                     assert c_i.stop < shape[i], "slice %s incompatible with shape %s at dim %d"%(c_i.stop, shape, i)
@@ -228,10 +269,12 @@ class IndexPick(Selector):
             elif hasattr(c_i, "__iter__"):
                 max_idx = max(c_i)
                 assert max_idx < shape[i], "tried to retrieve idx %s, but shape at dim %d is %s"%(max_idx, i, c_i)
+            new_idx.append(c_i)
+        return new_idx
 
     def __call__(self, file, shape, strides, dtype=np.float, return_indices=False, **kwargs):
-        self.check_idx(self.idx, shape)
-        idx = sample_idx(self.idx, shape)
+        idx = self.check_idx(self.idx, shape)
+        idx = sample_idx(idx, shape)
         data = load_memmap(file, idx, shape, strides, dtype, squeeze=True)
         if return_indices:
             return data, idx
@@ -249,10 +292,12 @@ class OfflineEntry(object):
         return "OfflineEntry(selector: %s, file: %s)" % (self.selector, self.file)
 
     def __getitem__(self, item):
+        if not isinstance(item, (tuple, list)):
+            item = (item,)
         if len(item) == 0:
             return self
         else:
-            return type(self)(self.file, selector=self.selector.__getitem__(*item), dtype=self._dtype, shape=self._post_shape,
+            return type(self)(self.file, selector=self.selector.__getitem__(*item), dtype=self._dtype, shape=self._pre_shape,
                         strides=self.strides)
 
     def __init__(self, file, selector=Selector(), dtype=None, shape=None, strides=None, **kwargs):
