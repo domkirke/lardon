@@ -4,6 +4,22 @@ from lardon import batch
 
 batch_hash = {'list':batch.as_list,'pad': batch.pad, 'crop':batch.crop}
 
+
+def get_full_shape(shapes):
+    ndims = set([len(s) for s in shapes])
+    if len(ndims) > 1:
+        return None
+    ndims = list(ndims)[0]
+    full_shape = [None] * ndims
+    for dim in range(ndims):
+        current_shapes = list(set([s[dim] for s in shapes]))
+        if len(current_shapes) == 1:
+            full_shape[dim] = current_shapes[0]
+        else:
+            full_shape[dim] = (min(current_shapes), max(current_shapes))
+    return full_shape
+
+
 class NoShapeError(Exception):
     pass
 
@@ -15,7 +31,7 @@ class ShapeError(Exception):
         print('ShapeError(%s != %s)'%(self.true_shape, self.false_shape))
 
 def is_same(x):
-    return x.count(x[0]) == len(x)
+    return len(set(x)) == 1
 
 def get_full_idx(idx, shape):
     n_idx = len(idx)
@@ -50,7 +66,14 @@ def get_final_dim(sl, shape, squeeze=True):
 
 def load_memmap(fp, idx, shape, strides, dtype, squeeze=True):
     # check if strides are sorted (mandatory)
-    sort = np.argsort(strides)
+    def remove_eqs(s):
+        d = []
+        for s_tmp in s:
+            if s_tmp in d:
+                continue
+            d.append(s_tmp)
+        return d
+    sort = np.argsort(remove_eqs(strides))
     assert (np.unique(np.diff(sort)) == -1).all(), 'array is not contiguous'
 
     # init iteration
@@ -386,7 +409,7 @@ class OfflineEntry(object):
             axis = len(self._pre_shape) + axis
         scatter_shape = self._pre_shape[axis]
         entries = [type(self)(self.file, self.selector.__getitem__(*((slice(None, None, None),)*axis + (i, ))), dtype=self._dtype,
-                              shape=self._pre_shape, strides=self.strides[axis:]) for i in range(scatter_shape)]
+                              shape=self._pre_shape, strides=self.strides) for i in range(scatter_shape)]
         return entries
 
 
@@ -557,6 +580,14 @@ class OfflineDataList(object):
         assert mode in ['list', 'pad', 'crop']
         self._batch_mode = mode
 
+    @property
+    def ndim(self):
+        if self._shape is None:
+            return None
+        else:
+            return len(self._shape)
+
+
     def __init__(self, *args, check=False, dtype=None, transforms=None, selector=Selector(),
                  batch_mode="list", batch_args = {}, return_metadata=False, return_indices=False):
         """
@@ -585,8 +616,11 @@ class OfflineDataList(object):
         if len(args) == 1:
             if isinstance(args[0], dict):
                 entries = []
+                shapes = []
                 for filename, meta in args[0].items():
                     entries.append(self.EntryClass(filename, selector=selector, **meta))
+                    shapes.append(meta['shape'])
+                self._shape = (len(shapes),) + tuple(get_full_shape(shapes))
                 self.entries = entries
             elif isinstance(args[0], OfflineDataList):
                 self.entries = list(args[0].entries)
@@ -603,6 +637,7 @@ class OfflineDataList(object):
                     elif issubclass(type(elt), OfflineDataList):
                         entries.extend(elt.entries)
                 self.entries = entries
+                self._update_shape = True
             else:
                 raise ValueError('expected OfflineDataList, dict or list, but got : %s' % type(args[0]))
 

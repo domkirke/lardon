@@ -49,6 +49,18 @@ def compile(root_directory, target_directory, callback=dumb_callback, valid_exts
         entries.append(OfflineEntry(f"{target_directory}/{k}", **v))
     return OfflineDataList(entries)
 
+def erase(path):
+    if os.path.isdir(path):
+        for r,dirs,files in os.walk(path):
+            for f in files:
+                os.remove(f'{r}/{f}')
+            for d in dirs:
+                erase(f'{r}/{d}')
+        os.rmdir(path)
+    else:
+        os.remove(path)
+
+
 def parse_folder(root_directory, drop_metadata=False, **kwargs):
     assert os.path.isfile(f"{root_directory}/parsing.ldn"), "parsing file not found"
     with open(f"{root_directory}/parsing.ldn", "rb") as f:
@@ -72,24 +84,29 @@ def parse_folder(root_directory, drop_metadata=False, **kwargs):
 
 # CONTEXT MANAGER FOR ONLINE WRITING
 class LardonParser(object):
-    def __init__(self, root_directory, target_directory, callback=None, extension=".npy"):
+    def __init__(self, root_directory, target_directory, callback=None, extension=".npy", force=False):
         self.root_directory = root_directory
         self.target_directory = target_directory
         self.callback = callback
         self.extension = extension
         self.parsing_hash = {}
         self._intern_count = 0
+        self.shapes = []
+        self.force = force
 
     def __enter__(self):
         if not os.path.isdir(self.root_directory):
             raise FileNotFoundError('root directory %s not found'%self.root_directory)
         if os.path.isdir(self.target_directory):
             answer = None
-            while answer not in ["y", "n"]:
-                print('target directory %s is not empty. Proceed? [y/n] : '%self.target_directory)
-                answer = input()
+            if not self.force:
+                while answer not in ["y", "n"]:
+                    print('target directory %s is not empty. Proceed? [y/n] : '%self.target_directory)
+                    answer = input()
+            else:
+                answer = "y"
             if answer == "y":
-                os.system('rm -rf %s'%self.target_directory)
+                erase(self.target_directory)
                 os.makedirs(self.target_directory)
             else:
                 raise FileExistsError()
@@ -97,7 +114,13 @@ class LardonParser(object):
             os.makedirs(self.target_directory)
         return self
 
+
+
+
+
     def __exit__(self, exc_type, exc_val, exc_tb):
+        # full_shape = self.get_full_shape(self.shapes)
+        # self.parsing_hash['shapes'] = full_shape
         with open(f"{self.target_directory}/parsing.ldn", 'wb+') as f:
             dill.dump(self.parsing_hash, f)
 
@@ -107,10 +130,12 @@ class LardonParser(object):
         else:
             target_filename = f"{self.target_directory}/data_{self._intern_count}.npy"
         data = np.ascontiguousarray(data)
+        current_shape = data.shape
         checkdir(os.path.dirname(target_filename))
         save_as_memmap(target_filename, data)
         current_hash = re.sub(self.target_directory+'/?', '', target_filename)
         self.parsing_hash[current_hash] ={'shape':data.shape, 'strides':data.strides, 'dtype':data.dtype, **metadata}
+        self.shapes.append(current_shape)
 
 
 
