@@ -61,12 +61,17 @@ def erase(path):
         os.remove(path)
 
 
-def parse_folder(root_directory, drop_metadata=False, **kwargs):
+def parse_folder(root_directory, drop_metadata=False, files=None, **kwargs):
     assert os.path.isfile(f"{root_directory}/parsing.ldn"), "parsing file not found"
     with open(f"{root_directory}/parsing.ldn", "rb") as f:
         parsing = dill.load(f)
     new_parsing = OrderedDict()
     metadata = OrderedDict()
+    if files is not None:
+        ordered_parsing = OrderedDict()
+        for f in files:
+            ordered_parsing[f] = parsing[f]
+        parsing = ordered_parsing
     for k, v in parsing.items():
         new_parsing[f"{root_directory}/{k}"] = v
         if drop_metadata:
@@ -84,7 +89,7 @@ def parse_folder(root_directory, drop_metadata=False, **kwargs):
 
 # CONTEXT MANAGER FOR ONLINE WRITING
 class LardonParser(object):
-    def __init__(self, root_directory, target_directory, callback=None, extension=".npy", force=False):
+    def __init__(self, root_directory=None, target_directory=None, callback=None, extension=".npy", force=False):
         self.root_directory = root_directory
         self.target_directory = target_directory
         self.callback = callback
@@ -95,8 +100,8 @@ class LardonParser(object):
         self.force = force
 
     def __enter__(self):
-        if not os.path.isdir(self.root_directory):
-            raise FileNotFoundError('root directory %s not found'%self.root_directory)
+        # if not os.path.isdir(self.root_directory):
+        #     raise FileNotFoundError('root directory %s not found'%self.root_directory)
         if os.path.isdir(self.target_directory):
             answer = None
             if not self.force:
@@ -115,9 +120,6 @@ class LardonParser(object):
         return self
 
 
-
-
-
     def __exit__(self, exc_type, exc_val, exc_tb):
         # full_shape = self.get_full_shape(self.shapes)
         # self.parsing_hash['shapes'] = full_shape
@@ -126,7 +128,10 @@ class LardonParser(object):
 
     def register(self, data, metadata, filename=None):
         if filename:
-            target_filename = os.path.splitext(re.sub(self.root_directory, self.target_directory, filename))[0]+self.extension
+            if self.root_directory is None:
+                target_filename = os.path.splitext(self.target_directory+"/"+filename)[0]+self.extension
+            else:
+                target_filename = os.path.splitext(re.sub(self.root_directory, self.target_directory, filename))[0]+self.extension
         else:
             target_filename = f"{self.target_directory}/data_{self._intern_count}.npy"
         data = np.ascontiguousarray(data)
@@ -136,7 +141,6 @@ class LardonParser(object):
         current_hash = re.sub(self.target_directory+'/?', '', target_filename)
         self.parsing_hash[current_hash] ={'shape':data.shape, 'strides':data.strides, 'dtype':data.dtype, **metadata}
         self.shapes.append(current_shape)
-
 
 
 def parse_list(arrays, file_list, target_directory, extension=".npy", metadata={}):
