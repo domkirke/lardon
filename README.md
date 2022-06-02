@@ -10,8 +10,34 @@ python3 setup.py install
 ```
 
 ## Quick start
+To parse a dataset with `lardon`, you can use to different frontends:
 
- Lardon first parses the target data to create a `memmap`-compatible
+```python
+import lardon
+
+data_path = "${path_to_dataset}"
+parsed_path = "${path_to_parsed_dataset}"
+
+# online parsing
+offline_list = lardon.compile(data_path, parsed_path, valid_exts=['.npy'], callback=lardon.default_callback)
+
+# environment parsing (data_path can be None, that you can generate data while exporting it. if you do so,
+# the lardon parser will not have an iteration method)
+with lardon.LardonParser(data_path, parsed_path, valid_exts=['.npy']) as parser:
+    for f in parser:
+        data = np.load(f)
+        parser.register(f, {}, f)
+
+# you can then load the offline list with the parse_folder method
+offline_list = lardon.parse_folder(parsed_path, drop_metadata=True)
+data, metadata = offline_list[0] # lardon is asynchronous, s.t. data will be loaded when accessed
+```
+
+
+
+## Description
+
+Lardon first parses the target data to create a `memmap`-compatible
 version of the dataset, referring to data elements using aysnchonous callback units called `OfflineEntry`, 
 whose corresponding data is pointed using a `Selector`. Entries are compiled in an `OfflineDataList` object,
 that can be indexed as an usual list. 

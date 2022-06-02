@@ -15,7 +15,8 @@ setup(name='lardon',
       author_email='domkirke@wolfgang.wang',
       license='GPLv3',
       packages=find_packages(),
-      install_requires=['numpy',
+      install_requires=[
+        'numpy',
         'dill',
         'tqdm'
      ],
