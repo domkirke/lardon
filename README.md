@@ -1,4 +1,4 @@
-# Lardon
+# lardon
 Lardon is a front-end for dynamic data import of large files, using the `numpy.memmap` interface 
 to easily index large memory arrays without the entire import of the corresponding file.
 ## Setup
@@ -45,7 +45,7 @@ that can be indexed as an usual list.
 ###### Warning
 Please consider that, due to the `numpy.memmap` back-end, import time goes exponentially with the depth of the
 sliced dimension. Hence, dynamic import of deep dimensions of an array. For exemple, if the array is 10x10x10x10 `x[:, :, :, 0]`
-will result to 1000 `memmap` calls, while `x[:, 0:20]` will result to only 10 calls.
+will result to 1000 `memmap` calls, while `x[:, 0:20]` will result to only 10 calls. 
 
 ### Data parsing
 Data parsing can be easily done using the ``compile`` function :

@@ -22,7 +22,6 @@ def default_callback(filename: str) -> Tuple[np.array, Dict[str, np.array]]:
         Tuple[np.array, Dict[str: np.array]]: data and metadata
     """
     with open(filename, 'rb') as f:
-        print(f)
         return np.load(f), {}
 
 
@@ -39,6 +38,7 @@ def compile(root_directory: str,
             valid_exts: List[str] = [".npy"],
             extension: str = ".npy",
             force:bool = True,
+            verbose: bool = True,
             **kwargs):
     """compile is the main routine to parse a data folder into a lardon dataset. 
 
@@ -69,7 +69,11 @@ def compile(root_directory: str,
         raise FileNotFoundError("Directory %s is empty or could not be found"%root_directory)
 
     # export data
-    for f in tqdm(file_list, desc="exporting files...", total=len(file_list)):
+    if verbose:
+        iterator = tqdm(file_list, desc="exporting files...", total=len(file_list)) 
+    else:
+        iterator = file_list
+    for f in iterator:
         file_name = re.sub(root_directory + '/', '', f)
         current_filename = f"{tmp_dir}/{os.path.splitext(file_name)[0]}{extension}"
         data, metadata = callback(f)
@@ -89,7 +93,7 @@ def compile(root_directory: str,
             raise FileExistsError
         else:
             shutil.rmtree(target_directory, ignore_errors=False)
-            shutil.move(tmp_dir, target_directory)
+    shutil.move(tmp_dir, target_directory)
     entries = []
     # build offline data list
     for k, v in parsing_hash.items():
@@ -110,7 +114,7 @@ def erase(path):
         os.remove(path)
 
 
-def parse_folder(root_directory: str, drop_metadata: bool=False, files: bool=None, **kwargs) -> OfflineDataList:
+def parse_folder(root_directory: str, drop_metadata: bool=False, files: List[str]=None, **kwargs) -> OfflineDataList:
     """parse_folder parses a folder exported beforehand by the lardon package.
 
     Args:
@@ -192,15 +196,14 @@ class LardonParser(object):
         else:
             os.makedirs(self.target_directory)
 
-        for root, directory, files in os.walk(self.root_directory):
-            valid_files = list(filter(lambda f: True in [re.match(
-                v, os.path.splitext(f)[1]) is not None for v in self.valid_exts], files))
-            self.files.extend([f"{root}/{f}" for f in valid_files])
-            file_prefix = re.sub(self.root_directory + '(/)?', '', root)
-            if len(valid_files) != 0:
-                checkdir(f"{self.target_directory}/{file_prefix}")
-        if len(self.files) == 0:
-            raise FileNotFoundError("Directory %s is empty or could not be found"%self.root_directory)
+        if self.root_directory is not None:
+            for root, directory, files in os.walk(self.root_directory):
+                valid_files = list(filter(lambda f: True in [re.match(
+                    v, os.path.splitext(f)[1]) is not None for v in self.valid_exts], files))
+                self.files.extend([f"{root}/{f}" for f in valid_files])
+                file_prefix = re.sub(self.root_directory + '(/)?', '', root)
+                if len(valid_files) != 0:
+                    checkdir(f"{self.target_directory}/{file_prefix}")
         return self
 
     def __iter__(self):
@@ -237,6 +240,7 @@ class LardonParser(object):
         self.parsing_hash[current_hash] = {
             'shape': data.shape, 'strides': data.strides, 'dtype': data.dtype, **metadata}
         self.shapes.append(current_shape)
+        self._intern_count += 1
 
 """
 def parse_list(arrays, file_list, target_directory, extension=".npy", metadata={}):

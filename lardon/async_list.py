@@ -541,6 +541,10 @@ class OfflineDataList(object):
         for i in reversed(invalid_entries):
             del entries[i]
 
+    def scatter(self, dim):
+        new_entries = sum([x.scatter(0) for x in self.entries])
+        return OfflineDataList(new_entries)
+
     def squeeze(self, dim):
         """
         add a squeeze transformation in the OfflineDataList
