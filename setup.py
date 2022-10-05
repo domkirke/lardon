@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 print(find_packages())
 
 setup(name='lardon',
-      version='0.1.1',
+      version='0.1.2',
       description='numpy memmap front-end for large data indexing',
       long_description=long_description,
       long_description_content_type="text/markdown",
@@ -15,7 +15,8 @@ setup(name='lardon',
       author_email='domkirke@wolfgang.wang',
       license='GPLv3',
       packages=find_packages(),
-      install_requires=['numpy',
+      install_requires=[
+        'numpy',
         'dill',
         'tqdm'
      ],
