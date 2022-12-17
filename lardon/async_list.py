@@ -493,7 +493,7 @@ class OfflineDataList(object):
             idx = args[0]
             if isinstance(args[0], numbers.Integral):
                 data = self.entries[idx][args[1:]](return_metadata=return_metadata, return_indices=return_indices)
-            if hasattr(args[0], "__iter__"):
+            elif hasattr(args[0], "__iter__"):
                 data = [self.entries[i][args[1:]](return_metadata=return_metadata, return_indices=return_indices) for i in idx]
             elif isinstance(args[0], slice):
                 data = [self.entries[i][args[1:]](return_metadata=return_metadata, return_indices=return_indices) for i in range(len(self.entries))[idx]]
