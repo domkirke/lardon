@@ -161,7 +161,10 @@ class randslice(object):
             assert shape is not None, "under-complete randslice must be called with a valid shape"
         start = self.start or 0
         end = self.stop or shape - self.length
-        random_idx = random.randrange(start, end)
+        if start==end:
+            random_idx = 0
+        else:
+            random_idx = random.randrange(start, end)
         if self.length == 1:
             idx = random_idx
         else:
