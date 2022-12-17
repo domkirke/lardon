@@ -5,6 +5,7 @@ import numpy as np
 
 n_examples = 10
 input_shape = (7,11,13)
+# input_shape = (2, 44100)
 
 @pytest.fixture
 def dumb_data_path():

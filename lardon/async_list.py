@@ -60,7 +60,7 @@ def get_final_dim(sl, shape, squeeze=True):
             start = s.start or 0
             stop = s.stop or shape[i]
             step = s.step or 1
-            final_dim[i] = np.round((stop - start)/step).astype(np.int)
+            final_dim[i] = np.round((stop - start)/step).astype(np.int32)
     final_dim = np.array(list(filter(lambda x: x is not None, final_dim)))
     return final_dim
 
@@ -98,7 +98,6 @@ def load_memmap(fp, idx, shape, strides, dtype, squeeze=True):
     #         shapes[dim] = 1
     #     elif isinstance(idx[dim], slice):
 
-
     for dim in range(end_idx):
         if isinstance(idx[dim], int):
             # offsets = offsets + strides[dim] * idx[dim]
@@ -119,17 +118,22 @@ def load_memmap(fp, idx, shape, strides, dtype, squeeze=True):
             #     shapes[:, dim] = final_shape[final_shape_idx]
             # else:
             #     assert idx[dim].step > 0, "zero or negative step is not allowed (found at dim %d)"%dim
-            dim_idx = list(range(shape[dim]))[idx[dim]]
-            offsets = (offsets[np.newaxis] + (np.array(dim_idx) * strides[dim])[:, np.newaxis]).flatten()
-            offsets.sort()
-            shapes = shapes.repeat(len(dim_idx), 0)
-            shapes[:, dim] = 1
+            if dim == (end_idx - 1):
+                offsets = (offsets[np.newaxis] + (np.array([idx[dim].start]) * strides[dim])[:, np.newaxis]).flatten()
+                shapes[:, dim] = (idx[dim].stop - idx[dim].start)
+            else:
+                dim_idx = list(range(shape[dim]))[idx[dim]]
+                offsets = (offsets[np.newaxis] + (np.array(dim_idx) * strides[dim])[:, np.newaxis]).flatten()
+                # offsets.sort()
+                shapes = shapes.repeat(len(dim_idx), 0)
+                shapes[:, dim] = 1
         final_shape_idx += 1
     if len(final_shape) == 0:
         arr = np.array([0], dtype=dtype)
     else:
         arr = np.zeros(np.prod(final_shape), dtype=dtype)
     current_idx = 0
+    offsets.sort()
     for i in range(len(offsets)):
         current_slice = slice(current_idx, current_idx + np.prod(shapes[i]))
         arr[current_slice] = np.array(
@@ -194,7 +198,7 @@ class Selector(object):
     def get_shape(self, shape):
         return shape
 
-    def __call__(self, file, shape=None, dtype=np.float, return_indices=True, **kwargs):
+    def __call__(self, file, shape=None, dtype=np.float64, return_indices=True, **kwargs):
         data = np.array(np.memmap(file, dtype=dtype, mode='r', offset=0, shape=shape))
         if return_indices:
             return data, np.array([0])
@@ -204,7 +208,7 @@ class Selector(object):
 def is_empty_slice(sl):
     if not isinstance(sl, slice):
         return False
-    return (sl.start is None or sl.start is 0) and (sl.stop is None or sl.stop == -1) and (sl.step is None or sl.step == 1)
+    return (sl.start == None or sl.start is 0) and (sl.stop == None or sl.stop == -1) and (sl.step is None or sl.step == 1)
 
 
 class IndexPick(Selector):
@@ -295,7 +299,7 @@ class IndexPick(Selector):
             new_idx.append(c_i)
         return new_idx
 
-    def __call__(self, file, shape, strides, dtype=np.float, return_indices=False, **kwargs):
+    def __call__(self, file, shape, strides, dtype=np.float64, return_indices=False, **kwargs):
         idx = self.check_idx(self.idx, shape)
         idx = sample_idx(idx, shape)
         data = load_memmap(file, idx, shape, strides, dtype, squeeze=True)
@@ -490,8 +494,12 @@ class OfflineDataList(object):
                 data = [self.entries[i][args[1:]](return_metadata=return_metadata, return_indices=return_indices) for i in idx]
             elif isinstance(args[0], slice):
                 data = [self.entries[i][args[1:]](return_metadata=return_metadata, return_indices=return_indices) for i in range(len(self.entries))[idx]]
+            else:
+                raise IndexError("first index : %s invalid"%args[0])
         elif isinstance(args, slice):
             data = [entry(return_metadata=return_metadata, return_indices=return_indices) for entry in self.entries[args]]
+        else:
+            raise IndexError("Cannot parse OfflineDataList with index : %s "%args)
 
         if return_metadata:
             if isinstance(data, list):

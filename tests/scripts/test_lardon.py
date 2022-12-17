@@ -76,51 +76,60 @@ def test_indices_parsing(out_dir):
 def test_one_int_indexing(dumb_data, offline_list):
     """checks indexing on first dimension"""
     x = np.reshape(np.arange(np.prod(input_shape)), input_shape)
+    print('original shape : ', input_shape)
     idx = 1
     for i in range(len(input_shape)):
-        if i < 2:
-            continue
+        # if i < 2:
+        #     continue
         current_slice = [slice(None, None, None)] * i + [idx]
         print('-- testing slice %s...' % current_slice)
         out = offline_list.__getitem__((0,) + tuple(current_slice))
         x_ref = x.__getitem__(tuple(current_slice))
         try:
             assert (x_ref == out).all()
+            print("~> %s"%(out.shape,))
         except AssertionError as e:
-            offline_list.__getitem__((0,) + tuple(current_slice))
             raise e
 
 
 @pytest.mark.indexing
 def test_two_int_indexing(dumb_data, offline_list):
     """checks indexing on second dimension"""
+    print(input_shape)
     x = np.reshape(np.arange(np.prod(input_shape)), input_shape)
-    idx = 2
+    idx = (1,2)
     # two int items
-    for i in range(len(input_shape)-1):
-        current_slice = [slice(None, None, None)] * i + [idx, idx]
-        print('-- testing slice %s...' % current_slice)
-        out = offline_list.__getitem__((0,) + tuple(current_slice))
-        x_ref = x.__getitem__(tuple(current_slice))
-        try:
-            assert (x_ref == out).all()
-        except AssertionError as e:
-            offline_list.__getitem__((0,) + tuple(current_slice))
-            raise e
+    for i in range(len(input_shape)):
+        for j in range(i+1, len(input_shape)):
+            current_slice = [slice(None, None, None)] * len(input_shape)
+            current_slice[i] = idx[0]; current_slice[j] = idx[1]
+            print('-- testing slice %s...' % current_slice)
+            out = offline_list.__getitem__((0,) + tuple(current_slice))
+            x_ref = x.__getitem__(tuple(current_slice))
+            try:
+                assert (x_ref == out).all()
+                print("~> %s"%(out.shape,))
+            except AssertionError as e:
+                offline_list.__getitem__((0,) + tuple(current_slice))
+                raise e
 
 
 @pytest.mark.indexing
 def test_slice_indexing(dumb_data, offline_list):
     """checks slice indexing"""
     x = np.reshape(np.arange(np.prod(input_shape)), input_shape)
+    print("input shape : ", input_shape)
     for i in range(len(input_shape)):
-        current_slice = slice(0, 2)
+        # if i == 0:
+        #     continue
+        current_slice = slice(0, random.randint(1, input_shape[i]-1))
         current_slice = [slice(None, None, None)] * i + [current_slice]
         print('-- testing slice %s...' % current_slice)
         out = offline_list.__getitem__((0,) + tuple(current_slice))
         x_ref = x.__getitem__(tuple(current_slice))
         try:
             assert (x_ref == out).all()
+            print("~> %s"%(out.shape,))
         except AssertionError as e:
             offline_list.__getitem__((0,) + tuple(current_slice))
             raise e
