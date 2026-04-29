@@ -211,7 +211,7 @@ class Selector(object):
 def is_empty_slice(sl):
     if not isinstance(sl, slice):
         return False
-    return (sl.start == None or sl.start is 0) and (sl.stop == None or sl.stop == -1) and (sl.step is None or sl.step == 1)
+    return (sl.start is None or sl.start == 0) and (sl.stop is None or sl.stop == -1) and (sl.step is None or sl.step == 1)
 
 
 class IndexPick(Selector):
@@ -293,7 +293,8 @@ class IndexPick(Selector):
                 break
             if isinstance(c_i, slice):
                 if c_i.stop is not None:
-                    assert c_i.stop < shape[i], "slice %s incompatible with shape %s at dim %d"%(c_i.stop, shape, i)
+                    if c_i.stop >= shape[i]:
+                        c_i = slice(c_i.start, shape[i], c_i.step)
             elif isinstance(c_i, int):
                 assert c_i < shape[i], "index %d incompatible with shape %s at dim %d"%(c_i, shape, i)
             elif hasattr(c_i, "__iter__"):
